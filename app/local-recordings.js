@@ -21,10 +21,13 @@ const LocalRecordings = () => {
     setRows(await listRecordings());
   }, []);
 
+
+
   useEffect(() => {
-    // Recovery scans the whole store, so it runs on mount, not on every chunk write.
-    recoverInterrupted().then(refresh);
     localEvents.addEventListener("change", refresh);
+    localEvents.dispatchEvent(new Event("change")); // initial load through the same path as updates
+    // Recovery writes to the store, which fires "change" and refreshes the list through the same path.
+    recoverInterrupted();
     return () => localEvents.removeEventListener("change", refresh);
   }, [refresh]);
 
@@ -45,13 +48,14 @@ const LocalRecordings = () => {
     };
   }, [rows, thumbs]);
 
-  // While something still looks like it's recording, keep checking whether it went stale.
+  // While something still looks like it's recording, keep checking whether its heartbeat went stale. Scanning the
+  // whole store is too expensive to do on every chunk write, so it happens here rather than in `refresh`.
   const anyRecording = rows?.some((r) => r.status === "recording");
   useEffect(() => {
     if (!anyRecording) return;
-    const id = setInterval(refresh, 5_000);
+    const id = setInterval(recoverInterrupted, 5_000);
     return () => clearInterval(id);
-  }, [anyRecording, refresh]);
+  }, [anyRecording]);
 
   const download = async (row) => {
     setBusy(row.id);

@@ -89,3 +89,32 @@ describe("crash recovery", () => {
     expect((await local.getRecording("fresh")).status).toBe("recording");
   });
 });
+
+describe("recovery is repeatable", () => {
+  it("recovers a row that only goes stale after the first check", async () => {
+    // The tab died moments before the app reopened: the first pass sees a fresh heartbeat and must not give up,
+    // because a later pass is what actually recovers it.
+    const local = await load();
+    const { LOCAL } = await import("@/lib/config");
+    await local.putRecording(row(local, { id: "late" }));
+
+    expect(await local.recoverInterrupted()).toEqual({ recovered: 0, stillRecording: 1 });
+    expect((await local.getRecording("late")).status).toBe("recording");
+
+    const db = await local.getLocalDb();
+    const stored = await db.get("recordings", "late");
+    await db.put("recordings", { ...stored, updatedAt: Date.now() - LOCAL.staleAfterMs - 1 });
+
+    expect(await local.recoverInterrupted()).toEqual({ recovered: 1, stillRecording: 0 });
+    expect((await local.getRecording("late")).status).toBe("stopped");
+  });
+
+  it("is a no-op once everything is recovered", async () => {
+    const local = await load();
+    await local.putRecording(row(local, { id: "done" }));
+    const db = await local.getLocalDb();
+    const stored = await db.get("recordings", "done");
+    await db.put("recordings", { ...stored, status: "stopped", interrupted: true });
+    expect(await local.recoverInterrupted()).toEqual({ recovered: 0, stillRecording: 0 });
+  });
+});
