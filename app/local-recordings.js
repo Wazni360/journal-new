@@ -1,21 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Button, Status, Thumb } from "@/app/ui";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { Button, Progress, Status, Thumb } from "@/app/ui";
 import { deleteRecordingLocal, getThumb, listRecordings, localEvents, recoverInterrupted } from "@/lib/local";
 import { downloadRecording } from "@/lib/download";
+import { getAllUploadStatuses, resumeUpload, subscribeUploads } from "@/lib/uploader";
+import { uploadCopy, uploadProgress } from "@/lib/upload-copy";
 import { formatBytes, formatDate, formatDuration, formatTime } from "@/lib/format";
 
-const statusText = (row) => {
-  if (row.status === "recording") return "Recording now in another tab.";
-  if (row.interrupted) return "Recovered after an interruption. Not uploaded yet.";
-  return "Not uploaded yet.";
-};
+const emptyStatuses = new Map();
 
 const LocalRecordings = () => {
   const [rows, setRows] = useState(null);
   const [thumbs, setThumbs] = useState({});
   const [busy, setBusy] = useState(null);
+  const statuses = useSyncExternalStore(subscribeUploads, getAllUploadStatuses, () => emptyStatuses);
 
   const refresh = useCallback(async () => {
     await recoverInterrupted();
@@ -83,32 +82,39 @@ const LocalRecordings = () => {
     <section className="mb-12 border-b border-line pb-8">
       <h2 className="mb-4 text-sm text-muted">On this Mac</h2>
       <ul className="space-y-6">
-        {rows.map((row) => (
-          <li key={row.id} className="flex gap-5">
-            <Thumb src={thumbs[row.id]} />
-            <div className="min-w-0 flex-1 space-y-1">
-              <div className="flex flex-wrap items-baseline gap-x-4">
-                <span className="font-serif text-lg">
-                  {formatDate(row.recordedAt)}, {formatTime(row.recordedAt)}
-                </span>
-                <span className="font-mono text-sm tabular-nums text-muted">
-                  {formatDuration(row.durationMs)} · {formatBytes(row.totalBytes)}
-                </span>
-              </div>
-              <Status>{statusText(row)}</Status>
-              {row.status !== "recording" && (
-                <div className="flex gap-2 pt-1">
-                  <Button onClick={() => download(row)} disabled={busy === row.id}>
-                    {busy === row.id ? "Preparing…" : "Download"}
-                  </Button>
-                  <Button variant="quiet" onClick={() => discard(row)}>
-                    Discard
-                  </Button>
+        {rows.map((row) => {
+          const status = statuses.get(row.id);
+          const copy = uploadCopy(row, status);
+          const stalled = status && ["held", "retrying", "offline", "paused"].includes(status.phase);
+          return (
+            <li key={row.id} className="flex gap-5">
+              <Thumb src={thumbs[row.id]} />
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex flex-wrap items-baseline gap-x-4">
+                  <span className="font-serif text-lg">
+                    {formatDate(row.recordedAt)}, {formatTime(row.recordedAt)}
+                  </span>
+                  <span className="font-mono text-sm tabular-nums text-muted">
+                    {formatDuration(row.durationMs)} · {formatBytes(row.totalBytes)}
+                  </span>
                 </div>
-              )}
-            </div>
-          </li>
-        ))}
+                <Status tone={copy.tone}>{copy.text}</Status>
+                <Progress value={uploadProgress(status)} />
+                {row.status !== "recording" && (
+                  <div className="flex gap-2 pt-1">
+                    {stalled && <Button onClick={() => resumeUpload(row.id)}>Resume upload</Button>}
+                    <Button onClick={() => download(row)} disabled={busy === row.id}>
+                      {busy === row.id ? "Preparing…" : "Download"}
+                    </Button>
+                    <Button variant="quiet" onClick={() => discard(row)}>
+                      Discard
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

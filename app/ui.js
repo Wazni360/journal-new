@@ -27,3 +27,11 @@ export const Thumb = ({ src, alt = "" }) => (
     {src && <img src={src} alt={alt} className="h-full w-full object-cover" />}
   </div>
 );
+
+// The one progress bar in the app. Hairline, no animation beyond the width transition.
+export const Progress = ({ value }) =>
+  value == null ? null : (
+    <div className="h-px w-full max-w-64 bg-line">
+      <div className="h-px bg-muted transition-[width] duration-300" style={{ width: `${Math.round(value * 100)}%` }} />
+    </div>
+  );

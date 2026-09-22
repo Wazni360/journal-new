@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { Button, Heading, Page, Status } from "@/app/ui";
+import { Button, Heading, Page, Progress, Status } from "@/app/ui";
 import { createSession, openCamera } from "@/lib/recorder";
 import { downloadRecording } from "@/lib/download";
 import { formatBytes, formatDate, formatDuration } from "@/lib/format";
+import { getUploadStatus, subscribeUploads } from "@/lib/uploader";
+import { uploadCopy, uploadProgress } from "@/lib/upload-copy";
 
 const cameraErrorMessage = (err) => {
   if (err?.name === "NotAllowedError") return "Camera access was denied. Allow camera and microphone for this site in Chrome's site settings, then reload.";
@@ -29,6 +31,8 @@ const RecordPage = () => {
   const [rec, setRec] = useState(null); // recorder state snapshot
   const [elapsed, setElapsed] = useState(0);
   const [downloading, setDownloading] = useState(false);
+  const recId = rec?.row?.id;
+  const uploadStatus = useSyncExternalStore(subscribeUploads, () => (recId ? getUploadStatus(recId) : undefined), () => undefined);
 
   useEffect(() => {
     let cancelled = false;
@@ -164,16 +168,18 @@ const RecordPage = () => {
       <div className="mt-4 space-y-1">
         {camera === "error" && <Status tone="accent">{cameraError}</Status>}
         {rec?.error && <Status tone="accent">{rec.error}</Status>}
-        {(phase === "recording" || phase === "paused") && (
+        {phase !== "idle" && rec.row && (
           <Status>
             Saved on this Mac · {formatBytes(rec.totalBytes)}
             {rec.unsavedChunks ? ` · ${rec.unsavedChunks} chunks held in memory` : ""}
+            {phase === "stopped" ? ` · ${rec.row.codecLabel} ${rec.row.width}×${rec.row.height}` : ""}
           </Status>
         )}
-        {phase === "stopped" && (
-          <Status>
-            Saved on this Mac · {formatBytes(rec.totalBytes)} · {rec.codecLabel ?? rec.candidate.label} {rec.row.width}×{rec.row.height}. Not uploaded yet.
-          </Status>
+        {(phase === "recording" || phase === "paused" || phase === "stopped") && (
+          <>
+            <Status tone={uploadCopy(rec.row, uploadStatus).tone}>{uploadCopy(rec.row, uploadStatus).text}</Status>
+            <Progress value={uploadProgress(uploadStatus)} />
+          </>
         )}
       </div>
     </Page>

@@ -163,7 +163,11 @@ A page-level singleton. It starts on app load and wakes after each new chunk.
 - Upload part N only when persisted bytes ≥ N·P, or when the recording has stopped (for the final part). R2 rules: parts must be between 5 MiB and 5 GiB, all parts except the last must be the same size, and there's a maximum of 10,000 parts. The last part has no minimum size.
 - Get presigned `UploadPart` URLs in batches from `/api/entries/[id]/parts/sign`. `PUT` with `fetch`, read the `ETag` response header, and persist `{ partNumber, etag }` to IndexedDB immediately.
 - Retry with exponential backoff and jitter (1s up to a 60s cap), forever. Pause while `navigator.onLine` is false and resume on the `online` event. On 403, re-sign the URL (it probably expired).
-- On `NoSuchUpload`: R2 aborts incomplete multipart uploads after 7 days by default. Call `/api/entries/[id]/restart` for a new `uploadId`, clear the local part list, and re-upload everything from local data.
+- On `NoSuchUpload`: R2 aborts incomplete multipart uploads after 7 days by default. Call `/api/entries/[id]/restart` for a new `uploadId`, clear the local part list, and re-upload everything from local data. Automatic restarts are capped (`MAX_AUTO_RESTARTS`, 2 per session); past that the recording is held with an explanation rather than looping forever against a broken server.
+- If `/complete` answers with `retryParts`, those parts are dropped from the local part list and re-uploaded on the next pass; only those, not the whole file.
+- A `held` state stops automatic retries for one recording (empty recording, inconsistent local chunks, unverifiable upload). The banner shows why and offers **Resume upload**, which clears the hold. Local data is never touched in this state.
+- A 401 from any route pauses every upload with "Sign in again to resume uploading."
+- Only one tab uploads at a time, via a `navigator.locks` lock held for the life of the page.
 - After the final part: `POST /api/entries/[id]/complete`.
 - Then upload the sidecar audio and thumbnail with single presigned PUTs, and confirm each one.
 - Delete local video chunks **only** after `complete` returns `{ verified: true }`. Delete audio chunks and the thumbnail after their confirmations succeed. Then delete the local `recordings` row.
@@ -188,7 +192,7 @@ A page-level singleton. It starts on app load and wakes after each new chunk.
 | `DELETE /api/entries/[id]` | Soft delete (set `deleted_at`). There is **no** hard-delete endpoint in v1. |
 | `GET /api/cron/keepalive` | Vercel Cron, daily. Check `Authorization: Bearer ${CRON_SECRET}` and run a couple of cheap queries. This keeps the Supabase free project from pausing for inactivity. |
 
-**Completion verification (`/complete`):**
+**Completion verification (`/complete`):** (`lib/verify-parts.js` holds the pure check, covered by unit tests)
 
 1. `ListParts` (paginate; max 1000 per page).
 2. Check that part numbers are contiguous from 1..N, that all parts except the last are the same size, and that the sizes sum to `totalBytes`.
