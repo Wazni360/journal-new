@@ -187,6 +187,7 @@ A page-level singleton. It starts on app load and wakes after each new chunk.
 | `POST /api/entries/[id]/assets/sign` | Body `{ type: 'audio' \| 'thumb' }`. Return a presigned `PutObject` URL. |
 | `POST /api/entries/[id]/assets/confirm` | Body `{ type }`. `HeadObject` to check it exists, set the key on the row, rewrite `meta.json`. |
 | `GET /api/entries` | Non-deleted entries, newest first. |
+| `GET /api/entries/[id]` | One entry. 404 once soft-deleted. |
 | `GET /api/entries/[id]/media?kind=video\|audio\|thumb&download=1` | Presigned `GetObject`. With `download=1`, set `ResponseContentDisposition: attachment; filename="journal-YYYY-MM-DD-HHmm.<ext>"`. |
 | `PATCH /api/entries/[id]` | Update the title. |
 | `DELETE /api/entries/[id]` | Soft delete (set `deleted_at`). There is **no** hard-delete endpoint in v1. |
@@ -252,6 +253,8 @@ Pages:
 - `/`: the library. A banner at the top lists local recordings that aren't yet verified, each with **Resume upload** and **Download** buttons, plus a **Discard** action behind a confirm that states it is the only copy (needed to clear test recordings; it is the one place the app deletes unverified data, and only on explicit request).
 - `/record`: camera preview, record/pause/stop, elapsed time, and live status (for example "Saved on this Mac" / "Uploaded 42 of 58 MB").
 - `/entries/[id]`: player, editable title, download, delete.
+
+Library details: entries are grouped under month headings, newest first, each row showing thumbnail, title (falling back to the date), time and duration. Thumbnail URLs are presigned per entry and cached for the session. The title field saves on blur or Enter, reverts on Escape, and reports "Title saved." Delete is a soft delete behind a confirm that says the video stays in storage.
 
 Rules:
 

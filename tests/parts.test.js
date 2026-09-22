@@ -148,3 +148,25 @@ describe("backoff", () => {
     }
   });
 });
+
+describe("library formatting", () => {
+  it("groups entries into months in order", async () => {
+    const { monthKey, formatMonth } = await import("@/lib/format");
+    expect(monthKey("2026-09-22T10:00:00Z")).toBe("2026-09");
+    expect(monthKey("2026-01-02T23:59:00Z")).toMatch(/^2026-0[12]$/); // local time may shift the day, never the year
+    expect(formatMonth("2026-09-22T10:00:00Z")).toMatch(/September 2026/);
+  });
+
+  it("builds download filenames from the recorded time", async () => {
+    const { filenameStamp } = await import("@/lib/format");
+    expect(filenameStamp("2026-09-22T13:05:00")).toBe("2026-09-22-1305");
+  });
+
+  it("formats durations and sizes for the list", async () => {
+    const { formatDuration, formatBytes } = await import("@/lib/format");
+    expect(formatDuration(65_000)).toBe("1:05");
+    expect(formatDuration(3_725_000)).toBe("1:02:05");
+    expect(formatBytes(5 * 1024 * 1024)).toBe("5.0 MB");
+    expect(formatBytes(1024 * 1024 * 1024)).toBe("1.00 GB");
+  });
+});

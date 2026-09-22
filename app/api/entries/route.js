@@ -9,6 +9,12 @@ const allowedMimeTypes = new Set(RECORDING.videoCandidates.map((c) => c.mimeType
 
 const uploadResponse = (entry) => json({ id: entry.id, key: entry.video_key, uploadId: entry.upload_id, status: entry.status });
 
+export const GET = handler(async () => {
+  await requireSession();
+  const rows = await getDb()("entries").whereNull("deleted_at").orderBy("recorded_at", "desc");
+  return json({ entries: rows.map(serializeEntry) });
+});
+
 // Idempotent: the client generated the id and may call this again after a failed or interrupted attempt.
 export const POST = handler(async (request) => {
   await requireSession();

@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { Heading, NavLink, Page } from "@/app/ui";
 import LogoutButton from "./logout-button";
 import LocalRecordings from "./local-recordings";
+import Library from "./library";
 
 const HomePage = async () => {
   const session = await getSession();
@@ -18,7 +19,7 @@ const HomePage = async () => {
         </nav>
       </header>
       <LocalRecordings />
-      <p className="text-sm text-muted">The library arrives in Phase 4.</p>
+      <Library />
     </Page>
   );
 };
