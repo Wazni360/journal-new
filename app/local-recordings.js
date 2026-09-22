@@ -7,45 +7,38 @@ import { downloadRecording } from "@/lib/download";
 import { getAllUploadStatuses, resumeUpload, subscribeUploads } from "@/lib/uploader";
 import { uploadCopy, uploadProgress } from "@/lib/upload-copy";
 import { formatBytes, formatDate, formatDuration, formatTime } from "@/lib/format";
+import { applyThumbs, thumbDiff } from "@/lib/thumb-cache";
 
 const emptyStatuses = new Map();
 
 const LocalRecordings = () => {
   const [rows, setRows] = useState(null);
-  const [thumbs, setThumbs] = useState({});
+  const [thumbs, setThumbs] = useState(() => new Map()); // recordingId → object URL, or null when there's none
   const [busy, setBusy] = useState(null);
   const statuses = useSyncExternalStore(subscribeUploads, getAllUploadStatuses, () => emptyStatuses);
 
   const refresh = useCallback(async () => {
-    await recoverInterrupted();
     setRows(await listRecordings());
   }, []);
 
   useEffect(() => {
+    // Recovery scans the whole store, so it runs on mount, not on every chunk write.
+    recoverInterrupted().then(refresh);
     localEvents.addEventListener("change", refresh);
-    localEvents.dispatchEvent(new Event("change")); // initial load through the same path as updates
     return () => localEvents.removeEventListener("change", refresh);
   }, [refresh]);
 
   // Object URLs for thumbnails, created once per recording and revoked when the row goes away.
+  // The effect returns early when the cache already matches the rows, so it can never re-trigger itself.
   useEffect(() => {
     if (!rows) return;
-    const ids = rows.map((r) => r.id);
-    const missing = ids.filter((id) => !(id in thumbs));
+    const ids = new Set(rows.map((r) => r.id));
+    const { missing, stale } = thumbDiff(ids, thumbs);
+    if (!missing.length && !stale.length) return;
+
     let cancelled = false;
     Promise.all(missing.map(async (id) => [id, await getThumb(id)])).then((pairs) => {
-      if (cancelled) return;
-      setThumbs((prev) => {
-        const next = { ...prev };
-        pairs.forEach(([id, blob]) => (next[id] = blob ? URL.createObjectURL(blob) : null));
-        Object.keys(next).forEach((id) => {
-          if (!ids.includes(id)) {
-            if (next[id]) URL.revokeObjectURL(next[id]);
-            delete next[id];
-          }
-        });
-        return next;
-      });
+      if (!cancelled) setThumbs((prev) => applyThumbs(prev, pairs, stale, URL.revokeObjectURL.bind(URL)));
     });
     return () => {
       cancelled = true;
@@ -88,7 +81,7 @@ const LocalRecordings = () => {
           const stalled = status && ["held", "retrying", "offline", "paused"].includes(status.phase);
           return (
             <li key={row.id} className="flex gap-5">
-              <Thumb src={thumbs[row.id]} />
+              <Thumb src={thumbs.get(row.id)} />
               <div className="min-w-0 flex-1 space-y-1">
                 <div className="flex flex-wrap items-baseline gap-x-4">
                   <span className="font-serif text-lg">

@@ -285,6 +285,10 @@ Rules:
 
 **Phase 5: hardening.** Login rate limiting, keepalive cron, `scripts/rebuild-index.js` (rebuilds `entries` from R2 `meta.json` files), and the full failure test suite.
 
+### Idle-CPU rule
+
+Every page must use no measurable CPU when nothing is happening. An effect that depends on state it also sets must return early when there is nothing to change; otherwise it re-triggers itself and pegs the main thread, which looks exactly like the app crashing (clicks, navigation and reloads all queue behind it) and logs nothing. `lib/thumb-cache.js` holds that reconciliation as a pure function with tests. Measure with CDP `Performance.getMetrics` (`TaskDuration` over a window of wall-clock time) after any change to a client component; an idle page should be under 1% of a core.
+
 ### Failure tests (all must pass before calling Phase 3 done; re-run in Phase 5)
 
 1. Go offline (DevTools) for 2 minutes mid-recording. Recording continues and uploads resume afterward.

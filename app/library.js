@@ -23,16 +23,23 @@ const Library = () => {
 
   useEffect(() => {
     let cancelled = false;
+    let timer = null;
     const load = () =>
       fetchEntries()
         .then((entries) => !cancelled && setState({ status: "ready", entries, error: null }))
         .catch((err) => !cancelled && setState((s) => ({ ...s, status: "error", error: err.message })));
     load();
-    // An upload finishing removes the local row, which is the moment a new entry exists on the server.
-    localEvents.addEventListener("change", load);
+    // Local writes fire on every recorded chunk. Debounce, so recording doesn't refetch the library every few seconds;
+    // what matters is the write that removes a local row, which is when a new entry exists on the server.
+    const schedule = () => {
+      clearTimeout(timer);
+      timer = setTimeout(load, 1_500);
+    };
+    localEvents.addEventListener("change", schedule);
     return () => {
       cancelled = true;
-      localEvents.removeEventListener("change", load);
+      clearTimeout(timer);
+      localEvents.removeEventListener("change", schedule);
     };
   }, []);
 
