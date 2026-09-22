@@ -2,6 +2,7 @@ import { IMPORT, RECORDING } from "@/lib/config";
 import { requireSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { getEntry, isUuid, serializeEntry, updateEntry, writeMeta } from "@/lib/entries";
+import { parseEntriesQuery } from "@/lib/entries-query";
 import { createMultipartUpload, keys } from "@/lib/r2";
 import { badRequest, handler, json, readJson } from "@/lib/http";
 
@@ -10,10 +11,29 @@ const allowedMimeTypes = new Set([...RECORDING.videoCandidates.map((c) => c.mime
 
 const uploadResponse = (entry) => json({ id: entry.id, key: entry.video_key, uploadId: entry.upload_id, status: entry.status });
 
-export const GET = handler(async () => {
+export const GET = handler(async (request) => {
   await requireSession();
-  const rows = await getDb()("entries").whereNull("deleted_at").orderBy("recorded_at", "desc");
-  return json({ entries: rows.map(serializeEntry) });
+  const query = parseEntriesQuery(request.nextUrl.searchParams);
+  if (query.error) return badRequest(query.error);
+  const { pageSize, order, from, to } = query;
+
+  const filtered = getDb()("entries").whereNull("deleted_at");
+  if (from) filtered.where("recorded_at", ">=", from);
+  if (to) filtered.where("recorded_at", "<=", to);
+
+  const [{ count }] = await filtered.clone().count({ count: "*" });
+  const total = Number(count);
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  // Entries may have been deleted since the page was last rendered; answer the last real page rather than nothing.
+  const page = Math.min(query.page, pageCount);
+  // `id` breaks ties, so two entries with the same timestamp can't swap sides of a page boundary.
+  const rows = await filtered
+    .orderBy("recorded_at", order)
+    .orderBy("id", order)
+    .limit(pageSize)
+    .offset((page - 1) * pageSize);
+
+  return json({ entries: rows.map(serializeEntry), page, pageCount, pageSize, total });
 });
 
 // Idempotent: the client generated the id and may call this again after a failed or interrupted attempt.

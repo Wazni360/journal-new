@@ -12,6 +12,12 @@ export const Button = ({ variant = "outline", className = "", ...props }) => <bu
 
 export const NavLink = ({ className = "", ...props }) => <Link className={`text-sm text-muted hover:text-ink transition-colors duration-150 ${className}`} {...props} />;
 
+const field = "rounded-control border border-line bg-surface px-2 py-1 text-sm text-ink";
+
+export const Input = ({ className = "", ...props }) => <input className={`${field} ${className}`} {...props} />;
+
+export const Select = ({ className = "", ...props }) => <select className={`${field} ${className}`} {...props} />;
+
 export const Page = ({ children, wide = false }) => <main className={`mx-auto px-6 pt-16 pb-24 md:pt-24 ${wide ? "max-w-[44rem]" : "max-w-[40rem]"}`}>{children}</main>;
 
 export const Heading = ({ children, className = "" }) => <h1 className={`font-serif text-2xl font-normal tracking-tight ${className}`}>{children}</h1>;

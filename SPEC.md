@@ -186,7 +186,7 @@ A page-level singleton. It starts on app load and wakes after each new chunk.
 | `POST /api/entries/[id]/restart` | `AbortMultipartUpload` (ignore errors), then `CreateMultipartUpload` and save the new `upload_id`. |
 | `POST /api/entries/[id]/assets/sign` | Body `{ type: 'audio' \| 'thumb' }`. Return a presigned `PutObject` URL. |
 | `POST /api/entries/[id]/assets/confirm` | Body `{ type }`. `HeadObject` to check it exists, set the key on the row, rewrite `meta.json`. |
-| `GET /api/entries` | Non-deleted entries, newest first. |
+| `GET /api/entries` | One page of non-deleted entries. Query: `page` (1-based, default 1), `order` (`asc`\|`desc` by `recorded_at`, default `desc`), `from` and `to` (inclusive ISO instants bounding `recorded_at`). Page size is fixed by `LIBRARY.pageSize`, never by the client. Returns `{ entries, page, pageCount, pageSize, total }`; a `page` past the end answers the last real page. `lib/entries-query.js` holds the pure parse, covered by unit tests. |
 | `GET /api/entries/[id]` | One entry. 404 once soft-deleted. |
 | `GET /api/entries/[id]/media?kind=video\|audio\|thumb&download=1` | Presigned `GetObject`. With `download=1`, set `ResponseContentDisposition: attachment; filename="journal-YYYY-MM-DD-HHmm.<ext>"`. |
 | `PATCH /api/entries/[id]` | Update the title. |
@@ -238,6 +238,7 @@ Without `ExposeHeaders: ["ETag"]`, the browser can't read part ETags and uploads
 
 Unit tests for the logic where a silent bug corrupts a file:
 
+- Library query parsing: page, order and range validation, and the local calendar-day boundaries.
 - Part slicing math: which chunks overlap part N, byte ranges, final-part handling, the 5 MiB minimum.
 - `seq` continuity check.
 - `/complete` verification: contiguous part numbers, equal sizes except last, sum equals `totalBytes`.
@@ -255,7 +256,7 @@ Pages:
 - `/import`: bring in video files you already have (MP4/WebM, drag-and-drop or file picker). The date is read from the filename, falling back to the file's own timestamp, and can be corrected before importing. Files are sliced into IndexedDB exactly like recorded chunks (`IMPORT.chunkSizeBytes`), so the upload manager, verification and the library treat them as ordinary entries. A thumbnail is captured from the file. Imported entries carry `codec_label = 'imported'` and the plain container mime type, which `POST /api/entries` accepts alongside the recording codec strings. Rows are `status: 'importing'` while being written and are invisible to the uploader until the copy finishes.
 - `/entries/[id]`: player, editable title, download, delete.
 
-Library details: entries are grouped under month headings, newest first, each row showing thumbnail, title (falling back to the date), time and duration. Thumbnail URLs are presigned per entry and cached for the session. The title field saves on blur or Enter, reverts on Escape, and reports "Title saved." Delete is a soft delete behind a confirm that says the video stays in storage.
+Library details: entries are grouped under month headings, `LIBRARY.pageSize` (5) to a page, each row showing thumbnail, title (falling back to the date), time and duration. Above the list: a **From**/**To** date range, a newest-first/oldest-first sort, a **Clear** action once either is set, and the total entry count; below it, Previous/Next with "Page N of M". Changing a filter returns to page 1. The date pickers are calendar days in the viewer's timezone and are converted to instants before they reach the API, so "22 September" covers that whole day locally. Thumbnail URLs are presigned per entry and cached for the session. The title field saves on blur or Enter, reverts on Escape, and reports "Title saved." Delete is a soft delete behind a confirm that says the video stays in storage.
 
 Rules:
 
