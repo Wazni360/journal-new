@@ -34,6 +34,7 @@ If any change would weaken one of these, stop and ask.
 - **Cloudflare R2**: video storage via the S3 API (`@aws-sdk/client-s3`, `@aws-sdk/s3-request-presigner`). Endpoint `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com`, region `auto`.
 - **Postgres on Supabase**, accessed directly with **Knex + `pg`** over `DATABASE_URL`. Knex is used for both migrations and runtime queries. No `supabase-js`, no Supabase Auth, no Supabase Storage, no PostgREST.
   - Runtime connects through Supabase's session-mode pooler (port 5432). Pool `{ min: 0, max: 1 }` per serverless function; this is a single-user app.
+  - TLS with `rejectUnauthorized: false`: the pooler's certificate is signed by Supabase's own CA, which Node doesn't trust by default. The connection is encrypted but the chain isn't verified. Pinning Supabase's CA cert is the upgrade path if that ever matters.
   - Migrations run locally with `npx knex migrate:latest`, never during the Vercel build.
 - **IndexedDB** (via `idb`): local chunk storage.
 - **Tailwind** for styling.
@@ -167,7 +168,7 @@ A page-level singleton. It starts on app load and wakes after each new chunk.
 
 ## Server routes
 
-**Every route handler verifies the session itself.** Don't rely on middleware alone, because a 2025 Next.js vulnerability allowed middleware to be bypassed. Middleware only redirects unauthenticated page requests to `/login`. (**VERIFY:** Next.js 16 renamed `middleware.ts` to `proxy.ts`. Use `proxy.js` or `middleware.js`, whichever the installed version expects.)
+**Every route handler verifies the session itself.** Don't rely on middleware alone, because a 2025 Next.js vulnerability allowed middleware to be bypassed. Middleware only redirects unauthenticated page requests to `/login`. (Confirmed: Next.js 16 renamed it to `proxy.js`; `middleware.js` is deprecated. Proxy runs on the Node runtime.)
 
 | Route | Purpose |
 |---|---|
