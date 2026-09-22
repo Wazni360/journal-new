@@ -12,7 +12,8 @@
     "migrate:rollback": "knex migrate:rollback",
     "migrate:make": "knex migrate:make",
     "hash-password": "node scripts/hash-password.js",
-    "rebuild-index": "node scripts/rebuild-index.js"
+    "rebuild-index": "node scripts/rebuild-index.js",
+    "prune-r2": "node scripts/prune-r2.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1137.0",
