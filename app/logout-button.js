@@ -10,7 +10,7 @@ const LogoutButton = () => {
     router.refresh();
   };
   return (
-    <button onClick={logout} className="underline text-sm">
+    <button onClick={logout} className="text-sm text-muted hover:text-ink transition-colors duration-150">
       Sign out
     </button>
   );

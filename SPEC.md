@@ -132,7 +132,9 @@ alter table knex_migrations_lock enable row level security;
 
 ## Client: local storage (IndexedDB, db name `journal`)
 
-- `recordings`: `{ id, recordedAt, mimeType, codecLabel, status: 'recording' | 'stopped', totalBytes, durationMs, width, height, upload: { key, uploadId, parts: { partNumber, etag }[] } | null, serverInitialized, audioUploaded, thumbUploaded }`
+- `recordings`: `{ id, recordedAt, mimeType, codecLabel, status: 'recording' | 'stopped', totalBytes, chunkCount, audioBytes, audioChunkCount, durationMs, width, height, upload: { key, uploadId, parts: { partNumber, etag }[] } | null, serverInitialized, audioUploaded, thumbUploaded, interrupted, updatedAt }`
+  - `updatedAt` is stamped on every chunk write and by a heartbeat (`LOCAL.heartbeatMs`) while recording or paused. Crash recovery only touches `recording` rows whose stamp is older than `LOCAL.staleAfterMs`, so a recording live in another tab is never clobbered.
+  - Chunk rows and the row's counters are written in one IndexedDB transaction, so they can't disagree.
 - `chunks`: key `[recordingId, seq]`, value `{ blob, size, offset }`. `offset` is the chunk's cumulative starting byte position.
 - `audioChunks`: same shape, for the sidecar audio.
 - `thumbs`: key `recordingId`, value `Blob`.
@@ -151,7 +153,7 @@ alter table knex_migrations_lock enable row level security;
 
 **Chunk integrity:** MediaRecorder output is only a valid file when every chunk is concatenated in exact order. The first chunk contains the file header. Treat `seq` continuity as critical and check it before completing an upload.
 
-**Crash recovery:** on app load, any local recording with status `recording` gets marked `stopped` (it was interrupted) and becomes uploadable. At most the last chunk is lost. (Phase 0: Chrome's MP4 muxer treats `timesliceMs` as advisory and emits a chunk per fragment, about every 3.3s at 2s timeslice, so the worst-case loss is ~3.5s, not 2s.)
+**Crash recovery:** on app load, any local recording with status `recording` and a stale `updatedAt` gets marked `stopped` with `interrupted: true` and becomes uploadable. At most the last chunk is lost. (Phase 0: Chrome's MP4 muxer treats `timesliceMs` as advisory and emits a chunk per fragment, about every 3.3s at 2s timeslice, so the worst-case loss is ~3.5s, not 2s.)
 
 ## Client: upload manager
 
@@ -243,7 +245,7 @@ The failure tests below are manual.
 Pages:
 
 - `/login`
-- `/`: the library. A banner at the top lists local recordings that aren't yet verified, each with **Resume upload** and **Download** buttons.
+- `/`: the library. A banner at the top lists local recordings that aren't yet verified, each with **Resume upload** and **Download** buttons, plus a **Discard** action behind a confirm that states it is the only copy (needed to clear test recordings; it is the one place the app deletes unverified data, and only on explicit request).
 - `/record`: camera preview, record/pause/stop, elapsed time, and live status (for example "Saved on this Mac" / "Uploaded 42 of 58 MB").
 - `/entries/[id]`: player, editable title, download, delete.
 
@@ -251,6 +253,8 @@ Rules:
 
 - Upload status must always be visible and honest. Never show a done state until the server has verified the upload.
 - Local download is available on `/record` after stopping and in the library banner. It concatenates chunks from IndexedDB into a Blob and downloads it with the correct file extension.
+- If IndexedDB refuses a chunk write (after `LOCAL.chunkWriteRetries`), the recorder keeps that chunk and every later one in memory, shows a warning, and the `/record` download includes them. Leaving `/record` mid-recording (client-side navigation, which `beforeunload` doesn't catch) stops and finalizes the recording locally instead of dropping the tail.
+- Preview is mirrored; the recorded file is not.
 - Error messages say what happened and what the app is doing about it. For example: "Upload paused — you're offline. Your recording is saved on this Mac and will resume automatically."
 - Keep it calm and quiet. This is a private journal, not a dashboard. Before building UI, propose a small design token set (palette, type, layout) for approval. Avoid template defaults.
 

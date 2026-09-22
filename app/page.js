@@ -1,19 +1,25 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import { Heading, NavLink, Page } from "@/app/ui";
 import LogoutButton from "./logout-button";
+import LocalRecordings from "./local-recordings";
 
 const HomePage = async () => {
   const session = await getSession();
   if (!session) redirect("/login");
 
   return (
-    <main className="mx-auto max-w-3xl p-6 space-y-4">
-      <header className="flex items-center justify-between">
-        <h1 className="text-lg">Journal</h1>
-        <LogoutButton />
+    <Page>
+      <header className="mb-12 flex items-baseline justify-between">
+        <Heading>Journal</Heading>
+        <nav className="flex gap-5">
+          <NavLink href="/record">Record</NavLink>
+          <LogoutButton />
+        </nav>
       </header>
-      <p className="text-neutral-500 text-sm">Library comes in Phase 4.</p>
-    </main>
+      <LocalRecordings />
+      <p className="text-sm text-muted">The library arrives in Phase 4.</p>
+    </Page>
   );
 };
 

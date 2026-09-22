@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button, Heading, Status } from "@/app/ui";
 
 const messages = {
   401: "Wrong password.",
@@ -38,9 +39,9 @@ const LoginPage = () => {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-6">
-      <form onSubmit={submit} className="w-full max-w-xs space-y-4">
-        <h1 className="text-lg">Journal</h1>
+    <main className="mx-auto max-w-[40rem] px-6 pt-24 md:pt-40">
+      <form onSubmit={submit} className="max-w-xs space-y-6">
+        <Heading>Journal</Heading>
         <input
           type="password"
           autoFocus
@@ -48,12 +49,12 @@ const LoginPage = () => {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Password"
-          className="w-full border border-neutral-400 bg-transparent px-3 py-2 outline-none focus:border-neutral-800"
+          className="w-full rounded-control border border-line bg-transparent px-3 py-2 outline-none placeholder:text-muted focus:border-muted"
         />
-        <button type="submit" disabled={busy || !password} className="w-full border border-neutral-800 px-3 py-2 disabled:opacity-50">
+        <Button type="submit" disabled={busy || !password}>
           {busy ? "Signing in…" : "Sign in"}
-        </button>
-        {error && <p className="text-sm text-red-700">{error}</p>}
+        </Button>
+        {error && <Status tone="accent">{error}</Status>}
       </form>
     </main>
   );
