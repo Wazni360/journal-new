@@ -150,7 +150,7 @@ alter table knex_migrations_lock enable row level security;
 
 **Chunk integrity:** MediaRecorder output is only a valid file when every chunk is concatenated in exact order. The first chunk contains the file header. Treat `seq` continuity as critical and check it before completing an upload.
 
-**Crash recovery:** on app load, any local recording with status `recording` gets marked `stopped` (it was interrupted) and becomes uploadable. At most the last `timesliceMs` is lost.
+**Crash recovery:** on app load, any local recording with status `recording` gets marked `stopped` (it was interrupted) and becomes uploadable. At most the last chunk is lost. (Phase 0: Chrome's MP4 muxer treats `timesliceMs` as advisory and emits a chunk per fragment, about every 3.3s at 2s timeslice, so the worst-case loss is ~3.5s, not 2s.)
 
 ## Client: upload manager
 
