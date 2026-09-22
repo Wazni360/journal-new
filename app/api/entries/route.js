@@ -1,11 +1,12 @@
-import { RECORDING } from "@/lib/config";
+import { IMPORT, RECORDING } from "@/lib/config";
 import { requireSession } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { getEntry, isUuid, serializeEntry, updateEntry, writeMeta } from "@/lib/entries";
 import { createMultipartUpload, keys } from "@/lib/r2";
 import { badRequest, handler, json, readJson } from "@/lib/http";
 
-const allowedMimeTypes = new Set(RECORDING.videoCandidates.map((c) => c.mimeType));
+// Recorded entries carry a full codec string; imported files carry the plain container type.
+const allowedMimeTypes = new Set([...RECORDING.videoCandidates.map((c) => c.mimeType), ...Object.keys(IMPORT.accept).map((t) => (t === "video/quicktime" ? "video/mp4" : t))]);
 
 const uploadResponse = (entry) => json({ id: entry.id, key: entry.video_key, uploadId: entry.upload_id, status: entry.status });
 

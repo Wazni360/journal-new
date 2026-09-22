@@ -93,7 +93,7 @@ const LocalRecordings = () => {
                 </div>
                 <Status tone={copy.tone}>{copy.text}</Status>
                 <Progress value={uploadProgress(status)} />
-                {row.status !== "recording" && (
+                {row.status !== "recording" && row.status !== "importing" && (
                   <div className="flex gap-2 pt-1">
                     {stalled && <Button onClick={() => resumeUpload(row.id)}>Resume upload</Button>}
                     <Button onClick={() => download(row)} disabled={busy === row.id}>

@@ -15,6 +15,7 @@ const HomePage = async () => {
         <Heading>Journal</Heading>
         <nav className="flex gap-5">
           <NavLink href="/record">Record</NavLink>
+          <NavLink href="/import">Import</NavLink>
           <LogoutButton />
         </nav>
       </header>
