@@ -57,7 +57,7 @@ export const RECORDING = {
   audioBitsPerSecond: 128_000,
   // First supported candidate wins.
   videoCandidates: [
-    { label: 'hevc', mimeType: 'video/mp4;codecs=hvc1', videoBitsPerSecond: 4_000_000 },
+    { label: 'hevc', mimeType: 'video/mp4;codecs=hvc1.1.6.L153.B0', videoBitsPerSecond: 4_000_000 },
     { label: 'h264', mimeType: 'video/mp4;codecs=avc1', videoBitsPerSecond: 6_000_000 },
     { label: 'vp9',  mimeType: 'video/webm;codecs=vp9,opus', videoBitsPerSecond: 6_000_000 },
   ],
@@ -72,8 +72,8 @@ export const UPLOAD = {
 };
 ```
 
-- **VERIFY:** the exact mime/codec strings Chrome accepts for HEVC and H.264 in MP4, including the audio codec. Probe with `MediaRecorder.isTypeSupported()` and log the results. HEVC encoding in Chrome is hardware-dependent and may be unsupported; if so, H.264 becomes the effective default.
-- **VERIFY:** the actual capture resolution. Log `track.getSettings()`. The built-in Mac camera likely delivers 1080p. The app must never upscale.
+- **Confirmed (Phase 0, Chrome on macOS):** bare `hvc1` is rejected; Chrome requires a full HEVC profile/level string. `video/mp4;codecs=hvc1.1.6.L153.B0` is accepted and records at 4 Mbps ≈ 29 MB/min. `video/mp4;codecs=avc1` records at 6 Mbps ≈ 43 MB/min. Both produce MP4s with a real duration and working seek. `video/webm;codecs=vp9,opus` records but reports `duration: null` / seekable to `Infinity`, so it is the last resort only.
+- **Confirmed (Phase 0):** the built-in camera delivers 1760×1328 @ 30fps under the `max: 2560/1440` constraint. Nothing is upscaled. Store whatever `getSettings()` reports.
 
 ## R2 object layout
 
