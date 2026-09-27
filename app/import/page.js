@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { Button, Heading, Page, Progress, Status } from "@/app/ui";
-import { importFile, isSupportedFile, recordedAtFor } from "@/lib/import";
+import { importFile, isSupportedFile } from "@/lib/import";
 import { formatBytes } from "@/lib/format";
 
 const localInputValue = (date) => {
@@ -11,9 +11,16 @@ const localInputValue = (date) => {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
 
+// The field keeps its own text, so typing a year digit by digit doesn't round-trip through a Date and clear it.
+// It's only turned into a Date at import time, and only once it's a whole, plausible value.
+const parseLocalInput = (value) => {
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) && date.getFullYear() >= 1970 ? date : null;
+};
+
 const ImportPage = () => {
   const inputRef = useRef(null);
-  const [queue, setQueue] = useState([]); // { file, recordedAt, state, message, progress }
+  const [queue, setQueue] = useState([]); // { file, recordedAt (datetime-local text), state, message, progress }
   const [dragging, setDragging] = useState(false);
 
   const add = (files) => {
@@ -21,8 +28,8 @@ const ImportPage = () => {
     const rejected = [...files].length - accepted.length;
     setQueue((q) => [
       ...q,
-      ...accepted.map((file) => ({ file, recordedAt: recordedAtFor(file), state: "ready", message: null, progress: 0 })),
-      ...(rejected ? [{ file: { name: `${rejected} file${rejected > 1 ? "s" : ""} skipped`, size: 0 }, state: "rejected", message: "Only MP4 and WebM video files can be imported.", progress: 0 }] : []),
+      ...accepted.map((file) => ({ file, recordedAt: localInputValue(new Date()), state: "ready", message: null, progress: 0 })),
+      ...(rejected ? [{ file: { name: `${rejected} file${rejected > 1 ? "s" : ""} skipped`, size: 0 }, state: "rejected", message: "Only MP4, MOV and WebM video files can be imported.", progress: 0 }] : []),
     ]);
   };
 
@@ -34,7 +41,7 @@ const ImportPage = () => {
       patch(index, { state: "importing", message: "Reading the file…" });
       try {
         const result = await importFile(item.file, {
-          recordedAt: item.recordedAt,
+          recordedAt: parseLocalInput(item.recordedAt),
           onProgress: ({ written, total }) => patch(index, { progress: written / total }),
         });
         patch(index, {
@@ -49,6 +56,7 @@ const ImportPage = () => {
   };
 
   const pending = queue.filter((i) => i.state === "ready").length;
+  const datesValid = queue.every((i) => i.state !== "ready" || parseLocalInput(i.recordedAt));
 
   return (
     <Page>
@@ -60,8 +68,8 @@ const ImportPage = () => {
       </header>
 
       <Status className="mb-6">
-        Add MP4 or WebM files you already have. They&apos;re saved on this Mac first, then uploaded and verified like a
-        recording made here. The date is taken from the filename or the file itself — correct it if it&apos;s wrong.
+        Add MP4, MOV or WebM files you already have. They&apos;re saved on this Mac first, then uploaded and verified like
+        a recording made here. Each one is dated now unless you set its date.
       </Status>
 
       <div
@@ -98,12 +106,14 @@ const ImportPage = () => {
                     Recorded
                     <input
                       type="datetime-local"
-                      value={localInputValue(item.recordedAt)}
-                      onChange={(e) => patch(index, { recordedAt: new Date(e.target.value) })}
+                      value={item.recordedAt}
+                      min="1970-01-01T00:00"
+                      onChange={(e) => patch(index, { recordedAt: e.target.value })}
                       className="ml-3 rounded-control border border-line bg-transparent px-2 py-1 text-ink"
                     />
                   </label>
                 )}
+                {item.state === "ready" && !parseLocalInput(item.recordedAt) && <Status tone="accent">Enter the full date and time it was recorded.</Status>}
                 {item.message && <Status tone={item.state === "error" || item.state === "rejected" ? "accent" : item.state === "done" ? "ok" : "muted"}>{item.message}</Status>}
                 {item.state === "importing" && <Progress value={item.progress} />}
               </li>
@@ -112,7 +122,7 @@ const ImportPage = () => {
 
           {pending > 0 && (
             <div className="mt-8">
-              <Button variant="accent" onClick={importAll}>
+              <Button variant="accent" onClick={importAll} disabled={!datesValid}>
                 Import {pending} file{pending > 1 ? "s" : ""}
               </Button>
             </div>

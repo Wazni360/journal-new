@@ -1,27 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chunkPlan, dateFromFilename } from "@/lib/import";
-
-describe("import filenames", () => {
-  it("reads the timestamp out of a spike download", () => {
-    const d = dateFromFilename("spike-hevc-2026-09-22-13-02.mp4");
-    expect([d.getFullYear(), d.getMonth() + 1, d.getDate(), d.getHours(), d.getMinutes()]).toEqual([2026, 9, 22, 13, 2]);
-  });
-
-  it("reads the timestamp out of a journal download", () => {
-    const d = dateFromFilename("journal-2026-09-22-1302.mp4");
-    expect([d.getDate(), d.getHours(), d.getMinutes()]).toEqual([22, 13, 2]);
-  });
-
-  it("falls back to midday for a date-only name", () => {
-    const d = dateFromFilename("holiday-2025-12-24.mp4");
-    expect([d.getMonth() + 1, d.getDate(), d.getHours()]).toEqual([12, 24, 12]);
-  });
-
-  it("returns null when there's no date to read", () => {
-    expect(dateFromFilename("IMG_0042.mov")).toBeNull();
-    expect(dateFromFilename("clip.mp4")).toBeNull();
-  });
-});
+import { chunkPlan } from "@/lib/import";
 
 describe("import chunking", () => {
   const P = 5 * 1024 * 1024;
