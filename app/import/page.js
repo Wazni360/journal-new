@@ -4,19 +4,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { Button, Heading, Page, Progress, Status } from "@/app/ui";
 import { importFile, isSupportedFile } from "@/lib/import";
-import { formatBytes } from "@/lib/format";
-
-const localInputValue = (date) => {
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-};
-
-// The field keeps its own text, so typing a year digit by digit doesn't round-trip through a Date and clear it.
-// It's only turned into a Date at import time, and only once it's a whole, plausible value.
-const parseLocalInput = (value) => {
-  const date = value ? new Date(value) : null;
-  return date && !Number.isNaN(date.getTime()) && date.getFullYear() >= 1970 ? date : null;
-};
+import { formatBytes, localInputValue, parseLocalInput } from "@/lib/format";
 
 const ImportPage = () => {
   const inputRef = useRef(null);

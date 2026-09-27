@@ -1,28 +1,32 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { listEntries } from "@/lib/entries";
-import { parseEntriesQuery } from "@/lib/entries-query";
+import { entriesQueryString, parseEntriesQuery, parseLibraryParams } from "@/lib/entries-query";
 import { Heading, NavLink, Page } from "@/app/ui";
 import LogoutButton from "./logout-button";
 import LocalRecordings from "./local-recordings";
 import Library from "./library";
 
-// The unfiltered first page ships with the HTML, so the library doesn't wait for hydration and then a round trip
-// before it can show anything. If this fails, the library falls back to fetching it in the browser as before.
+// The page the URL asks for ships with the HTML, so the library doesn't wait for hydration and then a round trip
+// before it can show anything. A date range is in the viewer's timezone, which the server doesn't know, so filtered
+// views (and any failure here) fall back to fetching in the browser.
 // The JSON round trip gives the client exactly the shape `GET /api/entries` returns (dates as ISO strings).
-const firstPage = () =>
-  listEntries(parseEntriesQuery({}))
-    .then((page) => JSON.parse(JSON.stringify(page)))
+const serverPage = ({ page, order, from, to }) => {
+  if (from || to) return null;
+  return listEntries(parseEntriesQuery({ page: String(page), order }))
+    .then((result) => JSON.parse(JSON.stringify(result)))
     .catch((err) => {
       console.error(err);
       return null;
     });
+};
 
-const HomePage = async () => {
+const HomePage = async ({ searchParams }) => {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const initialPage = await firstPage();
+  const query = parseLibraryParams(await searchParams);
+  const initialPage = await serverPage(query);
 
   return (
     <Page>
@@ -35,7 +39,7 @@ const HomePage = async () => {
         </nav>
       </header>
       <LocalRecordings />
-      <Library initialPage={initialPage} />
+      <Library initialPage={initialPage} initialKey={entriesQueryString(query)} />
     </Page>
   );
 };

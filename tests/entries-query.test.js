@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { LIBRARY } from "@/lib/config";
-import { dayEnd, dayStart, entriesQueryString, parseEntriesQuery } from "@/lib/entries-query";
+import { dayEnd, dayStart, entriesQueryString, parseEntriesQuery, parseLibraryParams } from "@/lib/entries-query";
 
 describe("library query parsing", () => {
   it("defaults to the first page, newest first, unfiltered", () => {
@@ -64,5 +64,26 @@ describe("library query string", () => {
     const sent = { page: 4, order: "asc", from: dayStart("2026-09-01"), to: dayEnd("2026-09-30") };
     const parsed = parseEntriesQuery(new URLSearchParams(entriesQueryString(sent).slice(1)));
     expect(parsed).toMatchObject(sent);
+  });
+});
+
+describe("library URL parsing", () => {
+  it("defaults to the first page, newest first, unfiltered", () => {
+    expect(parseLibraryParams(new URLSearchParams())).toEqual({ page: 1, order: "desc", from: "", to: "" });
+  });
+
+  it("reads a page, an order and a range of days", () => {
+    expect(parseLibraryParams({ page: "3", order: "asc", from: "2026-09-01", to: "2026-09-30" })).toEqual({ page: 3, order: "asc", from: "2026-09-01", to: "2026-09-30" });
+  });
+
+  it("falls back to defaults for anything malformed", () => {
+    const q = parseLibraryParams({ page: "0", order: "sideways", from: "2026-09-01T00:00:00Z", to: "yesterday" });
+    expect(q).toEqual({ page: 1, order: "desc", from: "", to: "" });
+    expect(parseLibraryParams({ page: "1e3" }).page).toBe(1);
+  });
+
+  it("round-trips through the query string the library pushes", () => {
+    const state = { page: 2, order: "asc", from: "2026-09-01", to: "" };
+    expect(parseLibraryParams(new URLSearchParams(entriesQueryString(state).slice(1)))).toEqual(state);
   });
 });

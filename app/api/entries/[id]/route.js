@@ -14,13 +14,23 @@ export const PATCH = handler(async (request, { params }) => {
   await requireSession();
   const { id } = await params;
   await loadEntryOr404(id);
-  const body = await readJson(request);
-  if (!("title" in (body ?? {}))) return badRequest("title required");
-  const { title } = body;
-  if (title !== null && typeof title !== "string") return badRequest("title must be a string or null");
-  if (typeof title === "string" && title.length > MAX_TITLE) return badRequest(`title must be at most ${MAX_TITLE} characters`);
+  const body = (await readJson(request)) ?? {};
+  if (!("title" in body) && !("recordedAt" in body)) return badRequest("title or recordedAt required");
+  const patch = {};
 
-  const updated = await updateEntry(id, { title: title?.trim() || null });
+  if ("title" in body) {
+    const { title } = body;
+    if (title !== null && typeof title !== "string") return badRequest("title must be a string or null");
+    if (typeof title === "string" && title.length > MAX_TITLE) return badRequest(`title must be at most ${MAX_TITLE} characters`);
+    patch.title = title?.trim() || null;
+  }
+  if ("recordedAt" in body) {
+    const { recordedAt } = body;
+    if (typeof recordedAt !== "string" || Number.isNaN(Date.parse(recordedAt))) return badRequest("recordedAt must be a date");
+    patch.recorded_at = new Date(recordedAt).toISOString();
+  }
+
+  const updated = await updateEntry(id, patch);
   await writeMeta(updated);
   return json({ entry: serializeEntry(updated) });
 });

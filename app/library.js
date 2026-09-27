@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Button, Input, Select, Status } from "@/app/ui";
 import EntryThumb from "@/app/entry-thumb";
 import { fetchEntries } from "@/lib/entries-client";
-import { dayEnd, dayStart } from "@/lib/entries-query";
+import { dayEnd, dayStart, entriesQueryString, parseLibraryParams } from "@/lib/entries-query";
+import { rememberLibraryHref } from "@/lib/library-href";
 import { localEvents } from "@/lib/local";
 import { formatDuration, formatMonth, formatShortDate, formatTime, monthKey } from "@/lib/format";
 
@@ -27,18 +29,29 @@ const isFiltered = ({ from, to, order }) => from !== "" || to !== "" || order !=
 const noSubscribe = () => () => {};
 const useHydrated = () => useSyncExternalStore(noSubscribe, () => true, () => false);
 
-// `initialPage` is the unfiltered first page, rendered with the HTML (or null if the server couldn't load it).
-const Library = ({ initialPage = null }) => {
+// The query lives in the URL, so paging, sorting and filtering each leave a history entry: Back returns to the
+// previous page of the library, and leaving for an entry and coming back lands where you were.
+// `initialPage` is the page the server rendered for `initialKey` (the query string it was built from), or null if it
+// couldn't load one. It's only used when it matches the URL: Next can restore a history entry with the server tree
+// from another one.
+const Library = ({ initialPage = null, initialKey = "" }) => {
   const hydrated = useHydrated();
-  const [query, setQuery] = useState({ ...NO_FILTER, page: 1 });
-  const [state, setState] = useState(() => (initialPage ? { status: "ready", page: initialPage, error: null } : { status: "loading", page: null, error: null }));
+  const query = parseLibraryParams(useSearchParams());
+  const key = entriesQueryString(query);
+  const [state, setState] = useState(() =>
+    initialPage && initialKey === key ? { status: "ready", page: initialPage, error: null } : { status: "loading", page: null, error: null },
+  );
   // The first load is already in hand when the server sent it; later query changes and local writes still fetch.
-  const skipLoad = useRef(Boolean(initialPage));
+  const skipLoad = useRef(state.status === "ready");
   const { page, from, to, order } = query;
 
+  // Next keeps `useSearchParams` in sync with native pushState, without a server round trip.
+  const navigate = (next) => window.history.pushState(null, "", `${window.location.pathname}${entriesQueryString(next)}`);
   // Changing a filter always returns to the first page; only the pager moves between pages.
-  const filter = (patch) => setQuery((q) => ({ ...q, ...patch, page: 1 }));
-  const goTo = (n) => setQuery((q) => ({ ...q, page: n }));
+  const filter = (patch) => navigate({ ...query, ...patch, page: 1 });
+  const goTo = (n) => navigate({ ...query, page: n });
+
+  useEffect(() => rememberLibraryHref(`/${key}`), [key]);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,7 +101,7 @@ const Library = ({ initialPage = null }) => {
           <option value="asc">Oldest first</option>
         </Select>
         {isFiltered(query) && (
-          <Button variant="quiet" onClick={() => setQuery({ ...NO_FILTER, page: 1 })}>
+          <Button variant="quiet" onClick={() => navigate({ ...NO_FILTER, page: 1 })}>
             Clear
           </Button>
         )}
