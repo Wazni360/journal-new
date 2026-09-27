@@ -74,7 +74,7 @@ export const UPLOAD = {
 };
 ```
 
-- **Confirmed (Phase 0, Chrome on macOS):** bare `hvc1` is rejected; Chrome requires a full HEVC profile/level string. `video/mp4;codecs=hvc1.1.6.L153.B0` is accepted and records at 4 Mbps ≈ 29 MB/min. `video/mp4;codecs=avc1` records at 6 Mbps ≈ 43 MB/min. Both produce MP4s with a real duration and working seek. `video/webm;codecs=vp9,opus` records but reports `duration: null` / seekable to `Infinity`, so it is the last resort only.
+- **Confirmed (Phase 0, Chrome on macOS):** bare `hvc1` is rejected; Chrome requires a full HEVC profile/level string. `video/mp4;codecs=hvc1.1.6.L153.B0` is accepted and records at 4 Mbps ≈ 29 MB/min. `video/mp4;codecs=avc1` records at 6 Mbps ≈ 43 MB/min. Both produce MP4s with a real duration and working seek. `video/webm;codecs=vp9,opus` records but reports `duration: null` / seekable to `Infinity`, so it is the last resort only. `scripts/remux-webm.js` (`npm run remux-webm`) makes such entries seekable after the fact, locally: it rewrites the container around the same packets (H.264 → `video.mp4`, VP8/VP9/AV1 → `video.seekable.webm` with Cues up front), checks that every stream decodes identically, then repoints the row. The original object stays until `prune-r2 --strays`.
 - **Confirmed (Phase 0):** the built-in camera delivers 1760×1328 @ 30fps under the `max: 2560/1440` constraint. Nothing is upscaled. Store whatever `getSettings()` reports.
 
 ## R2 object layout
