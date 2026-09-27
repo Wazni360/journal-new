@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { Button, Input, Select, Status } from "@/app/ui";
 import EntryThumb from "@/app/entry-thumb";
@@ -22,9 +22,18 @@ const groupByMonth = (entries) => {
 const NO_FILTER = { from: "", to: "", order: "desc" };
 const isFiltered = ({ from, to, order }) => from !== "" || to !== "" || order !== NO_FILTER.order;
 
-const Library = () => {
+// False on the server and during hydration, true after. Dates are formatted in the viewer's timezone, which the
+// server doesn't know, so the list is only ever rendered in the browser.
+const noSubscribe = () => () => {};
+const useHydrated = () => useSyncExternalStore(noSubscribe, () => true, () => false);
+
+// `initialPage` is the unfiltered first page, rendered with the HTML (or null if the server couldn't load it).
+const Library = ({ initialPage = null }) => {
+  const hydrated = useHydrated();
   const [query, setQuery] = useState({ ...NO_FILTER, page: 1 });
-  const [state, setState] = useState({ status: "loading", page: null, error: null });
+  const [state, setState] = useState(() => (initialPage ? { status: "ready", page: initialPage, error: null } : { status: "loading", page: null, error: null }));
+  // The first load is already in hand when the server sent it; later query changes and local writes still fetch.
+  const skipLoad = useRef(Boolean(initialPage));
   const { page, from, to, order } = query;
 
   // Changing a filter always returns to the first page; only the pager moves between pages.
@@ -38,7 +47,8 @@ const Library = () => {
       fetchEntries({ page, order, from: from && dayStart(from), to: to && dayEnd(to) })
         .then((data) => !cancelled && setState({ status: "ready", page: data, error: null }))
         .catch((err) => !cancelled && setState((s) => ({ ...s, status: "error", error: err.message })));
-    load();
+    if (skipLoad.current) skipLoad.current = false;
+    else load();
     // Local writes fire on every recorded chunk. Debounce, so recording doesn't refetch the library every few seconds;
     // what matters is the write that removes a local row, which is when a new entry exists on the server.
     const schedule = () => {
@@ -54,6 +64,7 @@ const Library = () => {
   }, [page, from, to, order]);
 
   const data = state.page;
+  if (!hydrated) return <Status>Loading…</Status>;
   if (!data) {
     if (state.status === "error") return <Status tone="accent">Couldn&apos;t load your entries: {state.error}</Status>;
     return <Status>Loading…</Status>;
